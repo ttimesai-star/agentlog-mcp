@@ -70,11 +70,11 @@ describe("MCP server over Streamable HTTP", () => {
     srv.local.close()
   })
 
-  it("negotiates protocol 2025-11-25 and lists the six tools with an MCP App view", async () => {
+  it("negotiates protocol 2025-11-25 and lists the seven tools with an MCP App view", async () => {
     assert.equal(LATEST_PROTOCOL_VERSION, "2025-11-25")
     assert.equal(client.getServerVersion()?.name, "agentlog-mcp")
     const { tools } = await client.listTools()
-    assert.deepEqual(tools.map((t) => t.name).sort(), ["audit_day", "diff_versions", "get_run", "list_runs", "log_action", "verify_run"])
+    assert.deepEqual(tools.map((t) => t.name).sort(), ["audit_day", "check_before_pay", "diff_versions", "get_run", "list_runs", "log_action", "verify_run"])
     const audit = tools.find((t) => t.name === "audit_day")!
     assert.equal((audit._meta as any)?.ui?.resourceUri, UI_URI)
     assert.equal(audit.annotations?.readOnlyHint, true)

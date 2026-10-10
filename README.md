@@ -3,7 +3,7 @@
 An MCP server that keeps a **tamper-evident log of what an AI agent did**, and answers that question by voice. Every step of an agent run (a tool call, a model call, an error, the end of the run) is hashed, signed by the agent's key and linked to the step before it. If anyone edits, deletes or re-signs a step afterwards, the server finds it and says **which step and how**.
 
 - MCP spec **2025-11-25**, **Streamable HTTP** (`/mcp`), TypeScript, official SDK `@modelcontextprotocol/sdk`
-- Six tools: `log_action`, `verify_run`, `audit_day`, `list_runs`, `get_run`, `diff_versions`
+- Seven tools: `log_action`, `verify_run`, `audit_day`, `list_runs`, `get_run`, `diff_versions`, `check_before_pay`
 - An **MCP App** view (`ui://agentlog/audit-card.html`): a card with each run's chain of steps and the place where it breaks
 - A **simulated Alexa+ experience**: a web page that is a real MCP client, with voice in and voice out, that shows every JSON-RPC message
 - State across sessions: local SQLite file, or the public **Arkiv** network for a log the operator cannot rewrite
@@ -81,6 +81,7 @@ Verification (the same code in Node, in a browser and offline) recomputes every 
 | `list_runs` | Runs of an agent, optionally of one day. | yes |
 | `get_run` | The run as an `agentlog-export/v1` bundle anyone can re-verify offline; with `include_raw`, the private evidence. | yes |
 | `diff_versions` | Two parties disagree about what the agent did. Checks each party's raw version against what the agent signed; a verdict per disputed step: `operator`, `client`, `both`, `neither`, `no_anchor`. | yes |
+| `check_before_pay` | Before an agent pays an x402 endpoint: one unpaid request, checks the 402 challenge (scheme, network, asset, payTo, amount, HTTPS), the caller's `max_price_usdc` and `expected_pay_to`, and the endpoint's history in the [Delivery Score](https://github.com/ttimesai-star/delivery-score) index (each fact backed by a signed AgentLog record). Returns facts, `proceed` and the reasons against; never pays. Only public https hosts. With `agent_id`, the check is logged as a step. | yes |
 
 Also: resource template `agentlog://{source}/{agent_id}/{run_id}` (the export bundle), prompt `daily_audit`, server `instructions` that tell a model never to call a log intact unless a tool said so.
 
@@ -144,10 +145,11 @@ The [Agent Skill](skills/agentlog-audit/SKILL.md) tells a model when and how to 
 | `AGENTLOG_ARKIV` | on | `off`: no Arkiv source |
 | `AGENTLOG_ARKIV_SIGNERS` | the SiteLog demo agent | `agent=0xwallet,…` |
 | `AGENTLOG_WRITE`, `AGENTLOG_PRIVATE_KEY` | `local` | `arkiv` to write on chain |
+| `DELIVERY_SCORE_INDEX` | none | path or https URL of a Delivery Score `index.json` for `check_before_pay`, e.g. `https://raw.githubusercontent.com/ttimesai-star/delivery-score/main/data/index.json` |
 
 ## Tests
 
-`npm test` runs 66 tests: the library (hashing, signatures, gaps, forks, foreign signers, seals, export, dispute replay, salted commitments, SQLite persistence and tampering) and the server end to end, where the SDK's own MCP client talks Streamable HTTP to it: protocol negotiation, the six tools and the MCP App resource, a run logged step by step, the voice question before and after an attacker edits the SQLite file, a re-signed and a deleted step, a dispute staged by the operator editing its own evidence, an unknown tamper mode refused, an offline-verifiable export, state across a server restart, refused requests (no session, foreign `Origin` or `Host`, bad ids) and static paths that try to leave `web/`. CI runs them on Node 22.18 and 24 and smoke-tests the HTTP endpoint.
+`npm test` runs 71 tests: the library (hashing, signatures, gaps, forks, foreign signers, seals, export, dispute replay, salted commitments, SQLite persistence and tampering) and the server end to end, where the SDK's own MCP client talks Streamable HTTP to it: protocol negotiation, the seven tools and the MCP App resource, a run logged step by step, the voice question before and after an attacker edits the SQLite file, a re-signed and a deleted step, a dispute staged by the operator editing its own evidence, an unknown tamper mode refused, an offline-verifiable export, state across a server restart, refused requests (no session, foreign `Origin` or `Host`, bad ids) and static paths that try to leave `web/`; `check_before_pay` against prepared x402 answers (v1 and v2 challenges, price cap, payTo change against the index, refused private targets). CI runs them on Node 22.18 and 24 and smoke-tests the HTTP endpoint.
 
 ## Built during the hackathon
 

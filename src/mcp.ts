@@ -1,4 +1,4 @@
-// The MCP server: six tools, one MCP App view (the audit card), one resource template (a run export).
+// The MCP server: seven tools, one MCP App view (the audit card), one resource template (a run export).
 // Protocol: MCP 2025-11-25 over Streamable HTTP (see http.ts). Tool results carry plain text for a
 // voice assistant to read out, structuredContent for clients, and _meta.ui for hosts that render
 // MCP Apps.
@@ -8,6 +8,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { z } from "zod"
 import { auditDay, auditRun, diffVersions, listRuns, logAction, store } from "./audit.ts"
 import type { Ctx, Source } from "./audit.ts"
+import { checkBeforePay } from "./x402check.ts"
 
 export const UI_URI = "ui://agentlog/audit-card.html"
 export const UI_MIME = "text/html;profile=mcp-app"
@@ -167,6 +168,33 @@ export function createMcpServer(ctx: Ctx): McpServer {
         ? disputed.map((s) => `Step ${s.step} (${s.action}${s.tool_revealed || s.tool ? ` ${s.tool_revealed || s.tool}` : ""}): ${s.verdict === "both" ? "both versions match" : s.verdict === "neither" ? "neither version matches" : s.verdict === "no_anchor" ? "the chain does not anchor this step" : `the ${s.verdict}'s version is what the agent signed`}. ${s.finding}`).join("\n")
         : "No step is disputed: both versions agree with what the agent signed."
       return result(text, r as unknown as Record<string, unknown>)
+    }),
+  )
+
+  server.registerTool(
+    "check_before_pay",
+    {
+      title: "Check an x402 endpoint before paying",
+      description:
+        "Before an agent pays an x402 endpoint: makes one unpaid request and checks the 402 challenge (scheme, network, asset, payTo, amount, HTTPS), compares it with the caller's limits (max_price_usdc, expected_pay_to) and with the endpoint's history in the Delivery Score index (earlier probes and paid purchases, each backed by a signed AgentLog record). Returns facts, a proceed flag and the reasons against. It never pays. With agent_id, the check itself is logged as a signed step of that agent's run.",
+      inputSchema: {
+        url: z.string().url().describe("The x402 resource URL the agent is about to pay"),
+        method: z.string().max(10).optional().describe("HTTP method of the paid call, default GET"),
+        body: json.describe("Request body the agent would send (POST endpoints often validate it before answering 402)"),
+        max_price_usdc: z.number().nonnegative().optional().describe("Refuse offers above this price"),
+        expected_pay_to: z.string().max(100).optional().describe("The payTo address the agent expects; any other address is a reason not to proceed"),
+        network: z.string().max(80).optional().describe('Only consider offers on this CAIP-2 network, e.g. "eip155:8453"'),
+        agent_id: id.optional().describe("Log the check as a step of this agent's run"),
+        run_id: id.optional(),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    wrap(async (a) => {
+      const r = await checkBeforePay(a)
+      let logged: Awaited<ReturnType<typeof logAction>> | undefined
+      if (a.agent_id) logged = await logAction(ctx, { agent_id: a.agent_id, run_id: a.run_id, action: "tool.call", tool: "check_before_pay", input: { url: a.url, method: a.method ?? "GET", max_price_usdc: a.max_price_usdc, expected_pay_to: a.expected_pay_to }, output: { proceed: r.proceed, reasons: r.reasons, offer: r.offer, live: r.live }, note: `check before paying ${a.url}`.slice(0, 280) })
+      const head = r.proceed ? `Proceed: ${r.facts.slice(0, 2).join(". ")}.` : `Do not pay yet: ${r.reasons.join("; ")}.`
+      return result(`${head}${logged ? ` Logged as step ${logged.written[logged.written.length - 1].step} of run ${logged.run_id}.` : ""}`, { ...r, ...(logged ? { logged } : {}) } as unknown as Record<string, unknown>)
     }),
   )
 

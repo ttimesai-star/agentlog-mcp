@@ -4,7 +4,7 @@
   "description": "Tamper-evident audit trail for AI agents: hash-chained, signed steps, offline verification, dispute replay, stores for Arkiv, SQLite and memory",
   "type": "module",
   "license": "MIT",
-  "author": "Artur Baranovsky",
+  "author": "Artur Baranouski",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ttimesai-star/agentlog.git"

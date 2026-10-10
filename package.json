@@ -4,7 +4,7 @@
   "description": "MCP server (Streamable HTTP) that keeps a tamper-evident, signed log of what an AI agent did and answers \"what did my agent do yesterday, and was the log changed?\", with a voice web simulator of Alexa+",
   "type": "module",
   "license": "MIT",
-  "author": "Artur Baranovsky",
+  "author": "Artur Baranouski",
   "private": true,
   "workspaces": [
     "packages/*"

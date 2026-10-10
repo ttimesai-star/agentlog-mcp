@@ -1,4 +1,4 @@
-# Friction log (draft for the Devpost submission)
+# Friction log
 
 Kept while building agentlog-mcp for the Alexa+ track, 10 October 2026. Each entry: task, steps, expected vs actual, severity, workaround, suggestion.
 
